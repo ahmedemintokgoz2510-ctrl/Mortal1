@@ -548,12 +548,15 @@ class Fighter {
     this.currentAnimation = null;
     this.materials = [];
     this.legBones = {
-      L: { upper: this.model.getObjectByName('UpperLegL'), lower: this.model.getObjectByName('LowerLegL') },
-      R: { upper: this.model.getObjectByName('UpperLegR'), lower: this.model.getObjectByName('LowerLegR') },
+      L: { upper: this.model.getObjectByName('UpperLeg.L'), lower: this.model.getObjectByName('LowerLeg.L') },
+      R: { upper: this.model.getObjectByName('UpperLeg.R'), lower: this.model.getObjectByName('LowerLeg.R') },
     };
     // Ayak mesh'i yerde duran IK ayak kemiğine (FootL/FootR) bağlı; tekmede bu kemik de bacakla taşınır
-    this.footBones = { L: this.model.getObjectByName('FootL'), R: this.model.getObjectByName('FootR') };
+    this.footBones = { L: this.model.getObjectByName('Foot.L'), R: this.model.getObjectByName('Foot.R') };
     this.footRestore = null;
+    this.rollPose = null;
+    this.rollDeltaUpper = new THREE.Quaternion();
+    this.rollDeltaLower = new THREE.Quaternion();
     this.kickAxis = new THREE.Vector3(1, 0, 0);
     this.kickDeltaUpper = new THREE.Quaternion();
     this.kickDeltaLower = new THREE.Quaternion();
@@ -787,6 +790,10 @@ class Fighter {
   }
 
   render(time, dt) {
+    if (this.rollPose) {
+      for (const pose of this.rollPose) pose.bone.quaternion.copy(pose.quat);
+      this.rollPose = null;
+    }
     if (this.kickPose) {
       this.kickPose.upper.quaternion.multiply(this.kickDeltaUpper.clone().invert());
       this.kickPose.lower.quaternion.multiply(this.kickDeltaLower.clone().invert());
@@ -833,6 +840,22 @@ class Fighter {
         const target = bones.lower.matrixWorld.clone().multiply(footRel);
         const local = foot.parent.matrixWorld.clone().invert().multiply(target);
         local.decompose(foot.position, foot.quaternion, foot.scale);
+      }
+    }
+
+    if (this.evade && this.evade.code[0] === 'D' && this.y <= 0.05) {
+      const progress = Math.min(1, this.evade.t / this.evade.dur);
+      const edge = Math.min(1, progress / .18, (1 - progress) / .18);
+      const tuck = edge * edge * (3 - 2 * edge);
+      this.rollPose = [];
+      for (const leg of Object.values(this.legBones)) {
+        if (!leg.upper || !leg.lower) continue;
+        this.rollPose.push({ bone: leg.upper, quat: leg.upper.quaternion.clone() });
+        this.rollPose.push({ bone: leg.lower, quat: leg.lower.quaternion.clone() });
+        this.rollDeltaUpper.setFromAxisAngle(this.kickAxis, -1.15 * tuck);
+        this.rollDeltaLower.setFromAxisAngle(this.kickAxis, 1.7 * tuck);
+        leg.upper.quaternion.multiply(this.rollDeltaUpper);
+        leg.lower.quaternion.multiply(this.rollDeltaLower);
       }
     }
 
