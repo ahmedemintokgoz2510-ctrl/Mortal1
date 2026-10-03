@@ -129,6 +129,8 @@
   .combo-sequence { grid-column: 1 / -1; white-space: normal; font-size: 13px; opacity: .9; }
   #hudMenu { position: fixed; left: 50%; bottom: 2vh; transform: translateX(-50%); z-index: 5; display: none; gap: 1vw; }
   #hudMenu button { color: var(--bone); background: rgba(42, 38, 35, .8); border: 1px solid #574b3b; font: 700 14px var(--body); padding: .5rem 1rem; cursor: pointer; opacity: .75; }
+  #soundButton { position: fixed; left: 2vw; bottom: 2vh; z-index: 12; color: var(--bone); background: rgba(42,38,35,.92); border: 1px solid #8a7548; font: 700 15px var(--body); padding: .65rem 1rem; cursor: pointer; }
+  #soundButton[aria-pressed="true"] { color: #f0d27a; border-color: #f0d27a; }
 </style>
 </head>
 <body>
@@ -195,7 +197,8 @@
     <div class="sp"><b id="spP2"></b></div><div class="pips" id="pipsP2"></div>
   </div>
 </div>
-<div id="hudMenu"><button id="soundButton" type="button" aria-pressed="false">Sesi Aç</button><button id="techOpen2" type="button">Teknikler</button><button id="comboOpen2" type="button">Kombolar</button></div>
+<div id="hudMenu"><button id="techOpen2" type="button">Teknikler</button><button id="comboOpen2" type="button">Kombolar</button></div>
+<button id="soundButton" type="button" aria-pressed="false">Sesi Aç</button>
 <div id="banner"></div>
 <div id="comboNotice"></div>
 <div id="closed">Bağlantı koptu.<br>Sayfayı yenile.</div>
@@ -561,11 +564,11 @@ class Fighter {
     this.currentAnimation = null;
     this.materials = [];
     this.legBones = {
-      L: { upper: this.model.getObjectByName('UpperLeg.L'), lower: this.model.getObjectByName('LowerLeg.L') },
-      R: { upper: this.model.getObjectByName('UpperLeg.R'), lower: this.model.getObjectByName('LowerLeg.R') },
+      L: { upper: this.model.getObjectByName('UpperLegL'), lower: this.model.getObjectByName('LowerLegL') },
+      R: { upper: this.model.getObjectByName('UpperLegR'), lower: this.model.getObjectByName('LowerLegR') },
     };
     // Ayak mesh'i yerde duran IK ayak kemiğine (FootL/FootR) bağlı; tekmede bu kemik de bacakla taşınır
-    this.footBones = { L: this.model.getObjectByName('Foot.L'), R: this.model.getObjectByName('Foot.R') };
+    this.footBones = { L: this.model.getObjectByName('FootL'), R: this.model.getObjectByName('FootR') };
     this.footRestore = null;
     this.kickAxis = new THREE.Vector3(1, 0, 0);
     this.kickDeltaUpper = new THREE.Quaternion();
