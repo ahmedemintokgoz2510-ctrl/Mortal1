@@ -513,8 +513,8 @@ addEventListener('resize', () => {
    DÖVÜŞÇÜ
    ========================================================= */
 const FIGHTER_ANIMATIONS = {
-  flame: { idle: 'Idle', run: 'Run', guard: 'Idle_Attacking', kick: 'Idle', hit: 'RecieveHit', death: 'Death', punch: 'Attack', cast: 'Attack2' },
-  ice: { idle: 'Idle', run: 'Run', guard: 'Idle_Attacking', kick: 'Idle', hit: 'RecieveHit', death: 'Death', punch: 'Punch', cast: 'Sword_Attack2' },
+  flame: { idle: 'Idle', run: 'Run', guard: 'Idle_Attacking', kick: 'Idle', hit: 'RecieveHit', death: 'Death', roll: 'Roll', punch: 'Attack', cast: 'Attack2' },
+  ice: { idle: 'Idle', run: 'Run', guard: 'Idle_Attacking', kick: 'Idle', hit: 'RecieveHit', death: 'Death', roll: 'Roll', punch: 'Punch', cast: 'Sword_Attack2' },
 };
 
 class Fighter {
@@ -538,8 +538,6 @@ class Fighter {
     const bounds = new THREE.Box3().setFromObject(this.model);
     const modelSize = bounds.getSize(new THREE.Vector3());
     this.modelScale = H / Math.max(.01, modelSize.y);
-    this.rollHalfWidth = Math.max(modelSize.x, modelSize.z) * this.modelScale * .5;
-    this.rollHalfHeight = modelSize.y * this.modelScale * .5;
     this.model.scale.setScalar(this.modelScale);
     // dönme (takla/yuvarlanma) vücut merkezinden olsun diye ara grup
     this.spin = new THREE.Group(); this.spin.position.y = H / 2;
@@ -557,9 +555,6 @@ class Fighter {
     // Ayak mesh'i yerde duran IK ayak kemiğine (FootL/FootR) bağlı; tekmede bu kemik de bacakla taşınır
     this.footBones = { L: this.model.getObjectByName('Foot.L'), R: this.model.getObjectByName('Foot.R') };
     this.footRestore = null;
-    this.rollPose = null;
-    this.rollDeltaUpper = new THREE.Quaternion();
-    this.rollDeltaLower = new THREE.Quaternion();
     this.kickAxis = new THREE.Vector3(1, 0, 0);
     this.kickDeltaUpper = new THREE.Quaternion();
     this.kickDeltaLower = new THREE.Quaternion();
@@ -794,10 +789,6 @@ class Fighter {
   }
 
   render(time, dt) {
-    if (this.rollPose) {
-      for (const pose of this.rollPose) pose.bone.quaternion.copy(pose.quat);
-      this.rollPose = null;
-    }
     if (this.kickPose) {
       this.kickPose.upper.quaternion.multiply(this.kickDeltaUpper.clone().invert());
       this.kickPose.lower.quaternion.multiply(this.kickDeltaLower.clone().invert());
@@ -810,7 +801,12 @@ class Fighter {
     }
     if (this.ko || this.down > 0) this.playAnimation(this.animationMap.death, false);
     else if (this.stun > 0) this.playAnimation(this.animationMap.hit, false);
-    else if (!this.attack) {
+    else if (this.evade && this.evade.code[0] === 'D') {
+      if (this.currentAnimation !== this.animationMap.roll) {
+        this.playAnimation(this.animationMap.roll, false, true);
+        if (this.currentAction) this.currentAction.setDuration(this.evade.dur);
+      }
+    } else if (!this.attack) {
       const animation = this.blocking || this.crouching || this.y > 0.05
         ? this.animationMap.guard
         : this.moving ? this.animationMap.run : this.animationMap.idle;
@@ -847,22 +843,6 @@ class Fighter {
       }
     }
 
-    if (this.evade && this.evade.code[0] === 'D' && this.y <= 0.05) {
-      const progress = Math.min(1, this.evade.t / this.evade.dur);
-      const edge = Math.min(1, progress / .18, (1 - progress) / .18);
-      const tuck = edge * edge * (3 - 2 * edge);
-      this.rollPose = [];
-      for (const leg of Object.values(this.legBones)) {
-        if (!leg.upper || !leg.lower) continue;
-        this.rollPose.push({ bone: leg.upper, quat: leg.upper.quaternion.clone() });
-        this.rollPose.push({ bone: leg.lower, quat: leg.lower.quaternion.clone() });
-        this.rollDeltaUpper.setFromAxisAngle(this.kickAxis, -1.15 * tuck);
-        this.rollDeltaLower.setFromAxisAngle(this.kickAxis, 1.7 * tuck);
-        leg.upper.quaternion.multiply(this.rollDeltaUpper);
-        leg.lower.quaternion.multiply(this.rollDeltaLower);
-      }
-    }
-
     this.fall += ((this.down > 0 ? 1 : 0) - this.fall) * (1 - Math.exp(-dt * (this.ko ? 8 : 14)));
     const kicking = this.attack && /kick|sweep/.test(this.attack.type) && !this.evade;
     const lean = kicking ? .14 * Math.min(1, this.attack.t / ATTACKS[this.attack.type].start) : 0;   // tekmede gövde hafif geriye yaslanır
@@ -871,23 +851,19 @@ class Fighter {
     this.tilt.position.y = .3 * this.fall + crouchLift;
     this.root.position.set(this.x, this.y, 0);
 
-    let spin = 0, roll = false;                       // takla / yuvarlanma görünümü
+    let spin = 0;
     if (this.evade) {
       const e = this.evade, p = Math.min(1, e.t / e.dur);
       const groundRoll = e.code[0] === 'D' && this.y <= 0.05;
       const jumpRoll = e.code[0] === 'U' && this.y > 0.05;
-      spin = -this.facing * (e.code[1] === 'F' ? 1 : -1) * p * Math.PI * (groundRoll ? 2 : jumpRoll ? .9 : 1.2);
-      roll = e.code[0] === 'D';
-      this.spin.position.y = groundRoll ? H / 2 : (roll ? .72 : jumpRoll ? H * 0.9 : H / 2);
-      this.spin.scale.setScalar(groundRoll ? 1 : (roll ? .7 : jumpRoll ? .9 : 1));
+      if (!groundRoll) spin = -this.facing * (e.code[1] === 'F' ? 1 : -1) * p * Math.PI * (jumpRoll ? .9 : 1.2);
+      this.spin.position.y = jumpRoll ? H * 0.9 : H / 2;
+      this.spin.scale.setScalar(jumpRoll ? .9 : 1);
     } else {
       this.spin.position.y = H / 2;
       this.spin.scale.setScalar(1);
     }
     this.spin.rotation.z = spin;
-    if (this.evade && this.evade.code[0] === 'D' && this.y <= 0.05) {
-      this.spin.position.y = Math.abs(Math.sin(spin)) * this.rollHalfWidth + Math.abs(Math.cos(spin)) * this.rollHalfHeight;
-    }
     const turn = this.attack && this.attack.type === 'backelbow' ? this.attack.t / ATTACKS.backelbow.total * Math.PI * 2 : 0;
     this.model.rotation.y = (this.facing > 0 ? Math.PI / 2 : -Math.PI / 2) + turn;
     if (this.burn && Math.random() < .6)
