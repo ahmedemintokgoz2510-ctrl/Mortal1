@@ -195,7 +195,7 @@
     <div class="sp"><b id="spP2"></b></div><div class="pips" id="pipsP2"></div>
   </div>
 </div>
-<div id="hudMenu"><button id="techOpen2" type="button">Teknikler</button><button id="comboOpen2" type="button">Kombolar</button></div>
+<div id="hudMenu"><button id="soundButton" type="button" aria-pressed="false">Sesi Aç</button><button id="techOpen2" type="button">Teknikler</button><button id="comboOpen2" type="button">Kombolar</button></div>
 <div id="banner"></div>
 <div id="comboNotice"></div>
 <div id="closed">Bağlantı koptu.<br>Sayfayı yenile.</div>
@@ -236,12 +236,22 @@ function loadFighterAssets() {
    ========================================================= */
 let AC = null, master = null;
 function unlockAudio() {
-  if (AC) { AC.resume(); return; }
+  const soundButton = $('soundButton');
+  if (AC) {
+    AC.resume().then(() => {
+      soundButton.textContent = 'Ses Açık';
+      soundButton.setAttribute('aria-pressed', 'true');
+    });
+    return;
+  }
   try {
     AC = new (window.AudioContext || window.webkitAudioContext)();
     master = AC.createGain(); master.gain.value = .5; master.connect(AC.destination);
   } catch (e) { return; }
   $('soundHint').style.display = 'none';
+  soundButton.textContent = 'Ses Açık';
+  soundButton.setAttribute('aria-pressed', 'true');
+  AC.resume();
   loadSounds();
 }
 ['pointerdown', 'keydown'].forEach((ev) => addEventListener(ev, unlockAudio));
@@ -678,7 +688,7 @@ class Fighter {
     const up = code[0] === 'U', dirx = code[1] === 'F' ? this.facing : -this.facing;
     this.evade = { code, t: 0, dur: up ? .68 : .5, vx: dirx * (up ? 5.5 : 7.5) };
     if (up) this.vy = 9.5;
-    else this.fall = 0;
+    this.fall = 0;
     this.jumpReady = false; this.attack = null; this.queued.length = 0;
     this.pushMove(code);
     sfx('whoosh');
@@ -801,7 +811,7 @@ class Fighter {
     }
     if (this.ko || this.down > 0) this.playAnimation(this.animationMap.death, false);
     else if (this.stun > 0) this.playAnimation(this.animationMap.hit, false);
-    else if (this.evade && this.evade.code[0] === 'D') {
+    else if (this.evade) {
       if (this.currentAnimation !== this.animationMap.roll) {
         this.playAnimation(this.animationMap.roll, false, true);
         if (this.currentAction) {
@@ -857,19 +867,9 @@ class Fighter {
     this.tilt.position.y = .3 * this.fall + crouchLift;
     this.root.position.set(this.x, this.y, 0);
 
-    let spin = 0;
-    if (this.evade) {
-      const e = this.evade, p = Math.min(1, e.t / e.dur);
-      const groundRoll = e.code[0] === 'D' && this.y <= 0.05;
-      const jumpRoll = e.code[0] === 'U' && this.y > 0.05;
-      if (!groundRoll) spin = -this.facing * (e.code[1] === 'F' ? 1 : -1) * p * Math.PI * (jumpRoll ? .9 : 1.2);
-      this.spin.position.y = jumpRoll ? H * 0.9 : H / 2;
-      this.spin.scale.setScalar(jumpRoll ? .9 : 1);
-    } else {
-      this.spin.position.y = H / 2;
-      this.spin.scale.setScalar(1);
-    }
-    this.spin.rotation.z = spin;
+    this.spin.position.y = H / 2;
+    this.spin.scale.setScalar(1);
+    this.spin.rotation.z = 0;
     const turn = this.attack && this.attack.type === 'backelbow' ? this.attack.t / ATTACKS.backelbow.total * Math.PI * 2 : 0;
     this.model.rotation.y = (this.facing > 0 ? Math.PI / 2 : -Math.PI / 2) + turn;
     if (this.burn && Math.random() < .6)
