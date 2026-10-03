@@ -536,7 +536,10 @@ class Fighter {
     this.tilt = new THREE.Group(); this.root.add(this.tilt);
     this.model = cloneSkinnedModel(fighterAssets[charKey].scene);
     const bounds = new THREE.Box3().setFromObject(this.model);
-    this.modelScale = H / Math.max(.01, bounds.getSize(new THREE.Vector3()).y);
+    const modelSize = bounds.getSize(new THREE.Vector3());
+    this.modelScale = H / Math.max(.01, modelSize.y);
+    this.rollHalfWidth = Math.max(modelSize.x, modelSize.z) * this.modelScale * .5;
+    this.rollHalfHeight = modelSize.y * this.modelScale * .5;
     this.model.scale.setScalar(this.modelScale);
     // dönme (takla/yuvarlanma) vücut merkezinden olsun diye ara grup
     this.spin = new THREE.Group(); this.spin.position.y = H / 2;
@@ -680,6 +683,7 @@ class Fighter {
     const up = code[0] === 'U', dirx = code[1] === 'F' ? this.facing : -this.facing;
     this.evade = { code, t: 0, dur: up ? .68 : .5, vx: dirx * (up ? 5.5 : 7.5) };
     if (up) this.vy = 9.5;
+    else this.fall = 0;
     this.jumpReady = false; this.attack = null; this.queued.length = 0;
     this.pushMove(code);
     sfx('whoosh');
@@ -872,15 +876,18 @@ class Fighter {
       const e = this.evade, p = Math.min(1, e.t / e.dur);
       const groundRoll = e.code[0] === 'D' && this.y <= 0.05;
       const jumpRoll = e.code[0] === 'U' && this.y > 0.05;
-      spin = -this.facing * (e.code[1] === 'F' ? 1 : -1) * p * Math.PI * (groundRoll ? .75 : jumpRoll ? .9 : 1.2);
+      spin = -this.facing * (e.code[1] === 'F' ? 1 : -1) * p * Math.PI * (groundRoll ? 2 : jumpRoll ? .9 : 1.2);
       roll = e.code[0] === 'D';
-      this.spin.position.y = groundRoll ? H * 0.8 : (roll ? .72 : jumpRoll ? H * 0.9 : H / 2);
+      this.spin.position.y = groundRoll ? H / 2 : (roll ? .72 : jumpRoll ? H * 0.9 : H / 2);
       this.spin.scale.setScalar(groundRoll ? 1 : (roll ? .7 : jumpRoll ? .9 : 1));
     } else {
       this.spin.position.y = H / 2;
       this.spin.scale.setScalar(1);
     }
     this.spin.rotation.z = spin;
+    if (this.evade && this.evade.code[0] === 'D' && this.y <= 0.05) {
+      this.spin.position.y = Math.abs(Math.sin(spin)) * this.rollHalfWidth + Math.abs(Math.cos(spin)) * this.rollHalfHeight;
+    }
     const turn = this.attack && this.attack.type === 'backelbow' ? this.attack.t / ATTACKS.backelbow.total * Math.PI * 2 : 0;
     this.model.rotation.y = (this.facing > 0 ? Math.PI / 2 : -Math.PI / 2) + turn;
     if (this.burn && Math.random() < .6)
