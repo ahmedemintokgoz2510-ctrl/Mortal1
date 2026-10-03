@@ -987,12 +987,16 @@ function resolveHits(att, def) {
     const guarded = def.takeHit(att, a);
     sfx(guarded ? 'block' : a.knock ? 'strong' : /kick|sweep/.test(att.attack.type) ? 'kickhit' : 'hit');
     shake = guarded ? .08 : (a.knock ? .4 : .25);
+    const impactColors = att.char.power === 'fire' ? [0xd9822b, 0xe9b44c] : [0xcfe6f2, 0x88ccff];
     if (cmb && !guarded) {
       const notice = $('comboNotice');
       notice.textContent = 'COMBO! · ' + cmb.name;
       notice.classList.remove('show'); void notice.offsetWidth; notice.classList.add('show');
       shake = .7;
-      burst(def.x, def.y + 1.4, att.char.power === 'fire' ? [0xd9822b, 0xe9b44c] : [0xcfe6f2, 0x88ccff], 24);
+      burst(def.x, def.y + 1.4, impactColors, 24);
+    } else if (!guarded && /kick|sweep/.test(att.attack.type)) {
+      const impactY = att.attack.type === 'sweep' ? .3 : .9;
+      burst(def.x, def.y + impactY, impactColors, 14);
     }
     if (def.hp <= 0) endRound(att, def);
   }
