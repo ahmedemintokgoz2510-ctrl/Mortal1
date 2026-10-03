@@ -868,8 +868,9 @@ class Fighter {
     const kicking = this.attack && /kick|sweep/.test(this.attack.type) && !this.evade;
     const lean = kicking ? .14 * Math.min(1, this.attack.t / ATTACKS[this.attack.type].start) : 0;   // tekmede gövde hafif geriye yaslanır
     const crouchLift = this.crouching && !this.attack ? -0.3 : 0;
-    this.tilt.rotation.z = this.fall * 1.5 * this.facing + lean * this.facing;
-    this.tilt.position.y = .3 * this.fall + crouchLift;
+    const groundedDeath = this.ko || this.down > 0;
+    this.tilt.rotation.z = groundedDeath ? 0 : this.fall * 1.5 * this.facing + lean * this.facing;
+    this.tilt.position.y = groundedDeath ? 0 : .3 * this.fall + crouchLift;
     this.root.position.set(this.x, this.y, 0);
     if (this.ko || this.down > 0) {
       this.root.updateMatrixWorld(true);
