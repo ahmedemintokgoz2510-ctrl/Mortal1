@@ -289,12 +289,11 @@ const BUF = {}, ALIAS = { r1: 'gong', r2: 'gong', r3: 'gong', strong: 'hit', kic
 const VOL = { r1: .9, r2: .9, r3: .8, finish: .9, hit: .8, strong: .9, kickhit: .8, block: .7, fire: .7, ice: .7, hurt: .9 };
 const FILES = { music: 'music', r1: 'round1', r2: 'round2', r3: 'round3', finish: 'finish', hit: 'hit', strong: 'strong',
                 kickhit: 'kickhit', block: 'block', fire: 'fire', ice: 'ice', hurt: 'hurt' };
-// public/sounds/ içindeki dosyaları yükler; bir dosya yoksa o ses için üretilen ses kullanılır
+// Sesleri proje kökünden yükle; public/sounds/ yerleşiminde yedek yolu dene.
 function loadSounds() {
   for (const k of Object.keys(FILES)) {
     const get = (u) => fetch(u).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject()));
-    // önce public/sounds/, yoksa doğrudan public/ içine bakar
-    get('/sounds/' + FILES[k] + '.mp3').catch(() => get('/' + FILES[k] + '.mp3'))
+    get('/' + FILES[k] + '.mp3').catch(() => get('/sounds/' + FILES[k] + '.mp3'))
       .then((b) => AC.decodeAudioData(b))
       .then((d) => { BUF[k] = d; if (k === 'music' && fighters && !musicSrc) startMusic(); })
       .catch(() => {});
@@ -317,6 +316,9 @@ function sfx(name, arg) {
   if (BUF[name]) playBuf(name, VOL[name] || .8);
   else { const f = SFX[name] || SFX[ALIAS[name]]; if (f) f(arg); }
 }
+$('soundButton').addEventListener('click', () => {
+  if (AC) AC.resume().then(() => SFX.fight()).catch(() => {});
+});
 
 const CHARS = {
   flame: { name: 'Ateş Keşişi', color: 0xa3382c, power: 'fire' },
