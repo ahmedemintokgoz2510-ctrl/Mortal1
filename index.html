@@ -223,8 +223,8 @@ function loadFighterAssets() {
   if (!fighterAssetsPromise) {
     const loader = new GLTFLoader();
     fighterAssetsPromise = Promise.all([
-      loader.loadAsync('/models/monk.gltf'),
-      loader.loadAsync('/models/warrior.gltf'),
+      loader.loadAsync('/models/monk.gltf').catch(() => loader.loadAsync('/monk.gltf')),
+      loader.loadAsync('/models/warrior.gltf').catch(() => loader.loadAsync('/warrior.gltf')),
     ]).then(([monk, warrior]) => ({ flame: monk, ice: warrior }))
       .catch((error) => { fighterAssetsPromise = null; throw error; });
   }
