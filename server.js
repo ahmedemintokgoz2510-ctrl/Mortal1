@@ -10,7 +10,11 @@ const server = http.createServer(app);
 const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static(path.join(__dirname, 'public')));
+// public/ klasörü varsa onu, yoksa (tüm dosyalar tek klasördeyse) ana klasörü sun
+const fs = require('fs');
+const PUB = fs.existsSync(path.join(__dirname, 'public')) ? path.join(__dirname, 'public') : __dirname;
+app.use((req, res, next) => (/^\/(server\.js|package(-lock)?\.json)$/.test(req.path) ? res.sendStatus(404) : next()));
+app.use(express.static(PUB));
 
 const CHARACTERS = ['flame', 'ice'];
 const ACTIONS = ['left', 'right', 'jump', 'crouch', 'punch', 'kick', 'block', 'special'];
