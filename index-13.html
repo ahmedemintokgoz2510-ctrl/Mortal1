@@ -804,7 +804,13 @@ class Fighter {
     else if (this.evade && this.evade.code[0] === 'D') {
       if (this.currentAnimation !== this.animationMap.roll) {
         this.playAnimation(this.animationMap.roll, false, true);
-        if (this.currentAction) this.currentAction.setDuration(this.evade.dur);
+        if (this.currentAction) {
+          this.currentAction.setDuration(this.evade.dur);
+          if (this.evade.code[1] === 'B') {
+            this.currentAction.time = this.currentAction.getClip().duration;
+            this.currentAction.timeScale = -Math.abs(this.currentAction.timeScale);
+          }
+        }
       }
     } else if (!this.attack) {
       const animation = this.blocking || this.crouching || this.y > 0.05
