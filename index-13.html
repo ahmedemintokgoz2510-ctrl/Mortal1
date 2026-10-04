@@ -722,7 +722,7 @@ class Fighter {
     const guarded = this.blocking && !a.knock;       // özel vuruşlar bloku deler
     const dmg = guarded ? Math.max(1, Math.round(a.dmg * 0.2)) : a.dmg;
     this.hp = Math.max(0, this.hp - dmg);
-    this.stun = guarded ? .12 : (a.stun || .28);
+    this.stun = guarded ? .08 : (a.stun ?? .18);
     if (a.freeze && !guarded) this.frozen = true;
     if (a.burn && !guarded) { this.burn = { t: 2, dps: BURN_TOTAL / 2 }; this.burnOwner = from; }
     this.queued.length = 0;
@@ -751,6 +751,7 @@ class Fighter {
     } else {
       this.facing = Math.sign(foe.x - this.x) || this.facing;
       if (this.stun > 0) {
+        if (k.block && !this.frozen) this.stun = Math.min(this.stun, .06);
         this.stun -= dt; if (this.stun <= 0) this.frozen = false;
         this.blocking = this.crouching = false; this.moving = 0; this.evade = null;
       } else {
