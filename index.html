@@ -727,6 +727,7 @@ class Fighter {
     if (a.burn && !guarded) { this.burn = { t: 2, dps: BURN_TOTAL / 2 }; this.burnOwner = from; }
     this.queued.length = 0;
     this.attack = null; this.evade = null;
+    this.lastDiag = '';
     this.kx = from.facing * a.push * (guarded ? .5 : 1);
     if (this.down > 0 && this.juggle) { this.juggleHits++; this.vy = Math.max(this.vy, 5); this.down = .9; }   // yerdeki/havadaki rakibe kombo devamı (en fazla 2)
     else if (a.knock && !guarded) { this.down = .9; this.vy = a.launch; this.juggle = true; this.juggleHits = 0; }
@@ -751,9 +752,19 @@ class Fighter {
     } else {
       this.facing = Math.sign(foe.x - this.x) || this.facing;
       if (this.stun > 0) {
-        if (k.block && !this.frozen) this.stun = Math.min(this.stun, .06);
-        this.stun -= dt; if (this.stun <= 0) this.frozen = false;
-        this.blocking = this.crouching = false; this.moving = 0; this.evade = null;
+        const fwdK = this.facing > 0 ? k.right : k.left, backK = this.facing > 0 ? k.left : k.right;
+        const v = k.jump ? 'U' : k.crouch ? 'D' : '', h = fwdK ? 'F' : backK ? 'B' : '';
+        const diag = v && h ? v + h : '';
+        const canEvade = diag && diag !== this.lastDiag && g && !k.block && !this.frozen && this.evadeCd <= 0 && this.stun <= .12;
+        if (canEvade) {
+          this.stun = 0; this.frozen = false;
+          this.startEvade(diag);
+        } else {
+          if (k.block && !this.frozen) this.stun = Math.min(this.stun, .06);
+          this.stun -= dt; if (this.stun <= 0) this.frozen = false;
+          this.blocking = this.crouching = false; this.moving = 0; this.evade = null;
+          if (!diag) this.lastDiag = '';
+        }
       } else {
         const fwdK = this.facing > 0 ? k.right : k.left, backK = this.facing > 0 ? k.left : k.right;
         const v = k.jump ? 'U' : k.crouch ? 'D' : '', h = fwdK ? 'F' : backK ? 'B' : '';
