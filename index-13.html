@@ -375,7 +375,7 @@ socket.on('disconnect', () => { $('closed').style.display = 'grid'; });
    ========================================================= */
 const ARENA = 8;            // x sınırı
 const W = 1.0, H = 2.4, CH = 1.4, D = 0.7;
-const HW = .3, SPECIAL_CD = 10, MAX_ROUNDS = 3;   // HW: gerçek vurulma genişliği (yarım) // gövde ölçüleri (ayakta / eğilmiş)
+const HW = .3, SPECIAL_CD = 5, MAX_ROUNDS = 3;   // HW: gerçek vurulma genişliği (yarım) // gövde ölçüleri (ayakta / eğilmiş)
 const SPEED = 5, JUMP = 11, GRAVITY = 28;
 
 const EVADE_IFRAMES = .4, EVADE_LOCK = .12, COMBO_WINDOW = 1.5, BURN_TOTAL = 5, ULT_DMG = 10;
@@ -427,7 +427,7 @@ const TECHNIQUES = [
   ['İleri Hücum Yumruğu', 'İleri + Yumruk', '8 hasar · öne atılır'],
   ['Atılma Tekmesi', 'İleri + Tekme', '11 hasar · uzun menzil'],
   ['Blok', 'BLOK tuşu (basılı tut)', 'Hasarı %80 azaltır'],
-  ['Özel (Ulti)', 'ÖZEL tuşu · 10 sn\'de dolar', 'Ateş topu / buz kristali · 10 hasar'],
+  ['Özel (Ulti)', 'ÖZEL tuşu · 5 sn\'de dolar', 'Ateş topu / buz kristali · 10 hasar'],
 ];
 function menuRow(name, right, text) {
   return '<div class="combo-row"><span class="combo-name">' + name + '</span><span class="combo-damage">' + right +
@@ -541,6 +541,7 @@ class Fighter {
     this.hp = 100; this.chip = 100;
     this.keys = { left: false, right: false, jump: false, crouch: false, block: false };
     this.attack = null; this.stun = 0; this.down = 0; this.fall = 0;
+    this.bufferedAttack = null; this.attackBuffer = 0;
     this.crouching = false; this.blocking = false; this.ko = false;
     this.moving = 0; this.ph = 0; this.jumpReady = true; this.charge = 0; this.frozen = false; this.juggle = false; this.juggleHits = 0;
     this.queued = []; this.inputHistory = []; this.time = 0;
@@ -637,7 +638,11 @@ class Fighter {
 
   // Tuş + yön o anki haliyle kaydedilir; saldırı sürüyorsa sıraya alınır, vuruş anından sonra devam eder
   startAttack(kind) {
-    if (this.ko || this.down > 0 || this.stun > 0 || this.blocking) return;
+    if (this.ko || this.down > 0 || this.blocking) return;
+    if (this.stun > 0) {
+      if (!this.frozen) { this.bufferedAttack = kind; this.attackBuffer = .24; }
+      return;
+    }
     if (this.evade && this.evade.t < EVADE_LOCK) return;
     const s = this.dirSnap();
     const entry = { t: this.time, kind, snap: s, attack: null,
@@ -647,6 +652,7 @@ class Fighter {
   }
 
   launch(entry) {
+    this.bufferedAttack = null; this.attackBuffer = 0;
     const fromFlip = !!this.evade && this.evade.code === 'UB';   // geri taklanın ardından gelen saldırı daha uzağa atılır
     this.evade = null;
     const air = this.y > 0.05, s = entry.snap, p = entry.kind === 'punch';
@@ -695,11 +701,12 @@ class Fighter {
     if (up) this.vy = 9.5;
     this.fall = 0;
     this.jumpReady = false; this.attack = null; this.queued.length = 0;
+    this.bufferedAttack = null; this.attackBuffer = 0;
     this.pushMove(code);
     sfx('whoosh');
   }
 
-  // Karaktere özel yetenek (10 sn'de dolar): Flame = ateş topu, Ice = buz oku (rakibi dondurur)
+  // Karaktere özel yetenek (5 sn'de dolar): Flame = ateş topu, Ice = buz oku (rakibi dondurur)
   cast() {
     if (this.ko || this.down > 0 || this.attack || this.stun > 0 || this.blocking || this.charge < 1 || this.y > 0.05) return;
     this.charge = 0;
@@ -739,6 +746,10 @@ class Fighter {
     this.charge = Math.min(1, this.charge + dt / SPECIAL_CD);
     this.time += dt;
     this.evadeCd = Math.max(0, this.evadeCd - dt);
+    if (this.bufferedAttack) {
+      this.attackBuffer -= dt;
+      if (this.attackBuffer <= 0) this.bufferedAttack = null;
+    }
     if (this.burn && phase === 'fight') {            // yanma: 2 sn boyunca azar azar hasar
       this.burn.t -= dt;
       this.hp = Math.max(0, this.hp - this.burn.dps * dt);
@@ -748,6 +759,7 @@ class Fighter {
     if (this.down > 0) {                              // yerde: kontrol yok, dokunulmaz
       this.attack = null; this.stun = 0; this.blocking = this.crouching = false; this.moving = 0;
       this.evade = null; this.frozen = false;
+      this.bufferedAttack = null; this.attackBuffer = 0;
       if (!this.ko && g) this.down -= dt;
     } else {
       this.facing = Math.sign(foe.x - this.x) || this.facing;
@@ -759,6 +771,11 @@ class Fighter {
         if (canEvade) {
           this.stun = 0; this.frozen = false;
           this.startEvade(diag);
+        } else if (this.bufferedAttack && !this.frozen && this.stun <= .06) {
+          const kind = this.bufferedAttack;
+          this.bufferedAttack = null; this.attackBuffer = 0;
+          this.stun = 0; this.blocking = false;
+          this.startAttack(kind);
         } else {
           if (k.block && !this.frozen) this.stun = Math.min(this.stun, .06);
           this.stun -= dt; if (this.stun <= 0) this.frozen = false;
@@ -951,12 +968,17 @@ function startGame(players) {
   });
 }
 function startRound() {
+  const carriedCharge = fighters && { P1: fighters.P1.charge, P2: fighters.P2.charge };
   if (fighters) for (const f of Object.values(fighters)) scene.remove(f.group);
   clearProjectiles();
   fighters = {
     P1: new Fighter('P1', matchPlayers.P1.character, -3),
     P2: new Fighter('P2', matchPlayers.P2.character,  3),
   };
+  if (carriedCharge) {
+    fighters.P1.charge = carriedCharge.P1;
+    fighters.P2.charge = carriedCharge.P2;
+  }
   $('nameP1').textContent = 'P1 · ' + fighters.P1.char.name;
   $('nameP2').textContent = 'P2 · ' + fighters.P2.char.name;
   $('roundLabel').textContent = 'RAUND ' + round + '/' + MAX_ROUNDS;
